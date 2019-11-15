@@ -12,12 +12,13 @@ import torch
 from skimage.measure import label
 
 class Hand(object):
-    def __init__(self, model_path):
-        self.model = handpose_model()
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-        model_dict = util.transfer(self.model, torch.load(model_path))
-        self.model.load_state_dict(model_dict)
+    def __init__(self, model_path, device):
+        model = handpose_model()
+        model_dict = util.transfer(model, torch.load(model_path))
+        model.load_state_dict(model_dict)
+
+        self.device = device
+        self.model = model.to(self.device)
         self.model.eval()
 
     def __call__(self, oriImg):
@@ -39,11 +40,12 @@ class Hand(object):
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
-            if torch.cuda.is_available():
-                data = data.cuda()
+            data = data.to(self.device)
+
+
             # data = data.permute([2, 0, 1]).unsqueeze(0).float()
             with torch.no_grad():
-                output = self.model(data).numpy()
+                output = self.model(data).cpu().numpy()
 
             # extract outputs, resize, and remove padding
             heatmap = np.transpose(np.squeeze(output), (1, 2, 0))  # output 1 is heatmaps

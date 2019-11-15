@@ -19,8 +19,8 @@ class Body(object):
         self.device = device
         self.model = model.to(self.device)
         self.model.eval()
-	
-        
+
+
     def __call__(self, oriImg):
         # scale_search = [0.5, 1.0, 1.5, 2.0]
         scale_search = [0.5]
@@ -41,10 +41,7 @@ class Body(object):
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
-	    
-            # TODO Check if this is a problem
-            if torch.cuda.is_available():
-                data = data.cuda()
+            data = data.to(self.device)
 
             # data = data.permute([2, 0, 1]).unsqueeze(0).float()
             with torch.no_grad():
@@ -119,26 +116,31 @@ class Body(object):
                 for i in range(nA):
                     for j in range(nB):
                         vec = np.subtract(candB[j][:2], candA[i][:2])
-                        norm = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1]) 
-                        if norm != 0:
-                            vec = np.divide(vec, norm)
+                        norm = math.sqrt(vec[0] * vec[0] + vec[1] * vec[1])
 
-                            startend = list(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num), \
-                                                np.linspace(candA[i][1], candB[j][1], num=mid_num)))
+                        if norm == 0:
+                            norm = 0.1
 
-                            vec_x = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 0] \
-                                              for I in range(len(startend))])
-                            vec_y = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 1] \
-                                              for I in range(len(startend))])
+                        vec = np.divide(vec, norm)
 
-                            score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
-                            score_with_dist_prior = sum(score_midpts) / len(score_midpts) + min(
-                                0.5 * oriImg.shape[0] / norm - 1, 0)
-                            criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len(score_midpts)
-                            criterion2 = score_with_dist_prior > 0
-                            if criterion1 and criterion2:
-                                connection_candidate.append(
-                                    [i, j, score_with_dist_prior, score_with_dist_prior + candA[i][2] + candB[j][2]])
+                        startend = list(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num), \
+                          np.linspace(candA[i][1], candB[j][1], num=mid_num)))
+
+                        vec_x = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 0] \
+                          for I in range(len(startend))])
+                        vec_y = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 1] \
+                          for I in range(len(startend))])
+
+                        score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1])
+                        score_with_dist_prior = sum(score_midpts) / len(score_midpts) + min(
+                          0.5 * oriImg.shape[0] / norm - 1, 0)
+
+                        criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len(score_midpts)
+                        criterion2 = score_with_dist_prior > 0
+
+                        if criterion1 and criterion2:
+                          connection_candidate.append(
+                            [i, j, score_with_dist_prior, score_with_dist_prior + candA[i][2] + candB[j][2]])
 
                 connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
                 connection = np.zeros((0, 5))
